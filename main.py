@@ -35,8 +35,6 @@ import random
 import warnings
 warnings.filterwarnings("ignore")
 
-
-
 # text preprocessing
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
@@ -61,54 +59,57 @@ with open('./models/vectorizer.pkl', 'rb') as file:
 
 def show_sentiment_detection():
     st.title("Sentiment Detection")
-    new_sentence = st.text_area("Enter the text for sentiment analysis", "")
+    new_sentence = st.text_area("Enter the text for sentiment analysis (limit to 100 words)", "")
     
     analyze_clicked = st.button("Analyze")
        
     if analyze_clicked:
         if new_sentence:
-            # Preprocess the user input
-            cleaned_sentence = clean_text(new_sentence, stop_words)
-            
-            input_features = vectorizer.transform([cleaned_sentence])
-            
-            predicted_sentiment = model.predict(input_features)[0]
+             # Check if the input exceeds 100 words
+            if len(new_sentence.split()) > 100:
+                st.error("Text input should not exceed 100 words.")
+            else:
+                # Preprocess the user input
+                cleaned_sentence = clean_text(new_sentence, stop_words)
+                
+                input_features = vectorizer.transform([cleaned_sentence])
+                
+                predicted_sentiment = model.predict(input_features)[0]
 
-            # Get the probability scores for each sentiment category
-            probability_scores = model.predict_proba(input_features)[0]
-            probability_scores_dict = {model.classes_[i]: probability_scores[i] for i in range(len(model.classes_))}
-            
-            # Sort the probability scores from highest to lowest
-            sorted_probabilities = sorted(probability_scores_dict.items(), key=lambda x: x[1], reverse=True)
+                # Get the probability scores for each sentiment category
+                probability_scores = model.predict_proba(input_features)[0]
+                probability_scores_dict = {model.classes_[i]: probability_scores[i] for i in range(len(model.classes_))}
+                
+                # Sort the probability scores from highest to lowest
+                sorted_probabilities = sorted(probability_scores_dict.items(), key=lambda x: x[1], reverse=True)
 
-            # Print the user input and predicted sentiment
-            st.info(f"Your sentence : {new_sentence}")
-            st.info(f"Cleaned Text : {cleaned_sentence}")
-            st.info(f"Predicted sentiment : {sorted_probabilities[0][0]}")
+                # Print the user input and predicted sentiment
+                st.info(f"Your Sentence : {new_sentence}")
+                st.info(f"Selected Text : {cleaned_sentence}")
+                st.info(f"Predicted Sentiment : {sorted_probabilities[0][0]}")
 
-            # Prepare data for bar chart
-            sentiment_labels = [sentiment for sentiment, _ in sorted_probabilities]
-            probabilities = [probability * 100 for _, probability in sorted_probabilities]
+                # Prepare data for bar chart
+                sentiment_labels = [sentiment for sentiment, _ in sorted_probabilities]
+                probabilities = [probability * 100 for _, probability in sorted_probabilities]
 
-            # Display bar chart
-            st.subheader("Sentiment Probabilities")
-            fig, ax = plt.subplots(figsize=(10, 6))
-            ax.bar(sentiment_labels, probabilities)
-            ax.set_xlabel("Sentiment")
-            ax.set_ylabel("Probability (%)")
-            ax.set_title("Sentiment Probabilities")
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-            ax.yaxis.set_ticks_position('left')
-            ax.xaxis.set_ticks_position('bottom')
-            for i, v in enumerate(probabilities):
-                ax.text(i, v, f"{v:.2f}%", color='black', ha='center')
-            plt.xticks()
-            st.pyplot(fig)
-            
-             # Save as image button
-            save_as_image(cleaned_sentence, sorted_probabilities, fig)
-
+                # Display bar chart
+                st.subheader("Sentiment Probabilities")
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.bar(sentiment_labels, probabilities)
+                ax.set_xlabel("Sentiment")
+                ax.set_ylabel("Probability (%)")
+                ax.set_title("Sentiment Probabilities Bar Chart")
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.yaxis.set_ticks_position('left')
+                ax.xaxis.set_ticks_position('bottom')
+                for i, v in enumerate(probabilities):
+                    ax.text(i, v, f"{v:.2f}%", color='black', ha='center')
+                plt.xticks()
+                st.pyplot(fig)
+                
+                # Save as image button
+                save_as_image(cleaned_sentence, sorted_probabilities, fig)
             
         else:
             st.error("Please enter a sentence for sentiment analysis.")
@@ -121,21 +122,28 @@ def save_as_image(new_sentence, sorted_sentiments, fig):
     # Split the new_sentence into a list of words
     words = new_sentence.split()
 
-    # Group the words into lines of 14 words each
-    lines = [words[i:i+14] for i in range(0, len(words), 14)]
+    # Group the words into lines of 11 words each
+    lines = [words[i:i+11] for i in range(0, len(words), 11)]
 
-    # Create a string with new lines for every 14 words
+    # Create a string with new lines for every 11 words
     sentence_lines = '\n'.join([' '.join(line) for line in lines])
-
-    # Display the sentence with new lines every 14 words
-    st_image.text((100, 50), f"Your sentence:\n{sentence_lines}", fill="black", font=font)
+    
+    # Display the sentence with new lines every 11 words
+    st_image.text((100, 50), f"Selected Text:\n{sentence_lines}", fill="black", font=font)
+    
+    sentiments, probabilities = zip(*sorted_sentiments)
 
     # Calculate the height for each sentiment line
     sentiment_height = 30
-    sentiment_start_y = 180
-    for i, sentiment in enumerate(sorted_sentiments):
+    sentiment_start_y = 260
+    for i, (sentiment_label, probability) in enumerate(zip(sentiments, probabilities)):
         sentiment_y = sentiment_start_y + (i * sentiment_height)
-        st_image.text((100, sentiment_y), f"Predicted sentiment: {sentiment}", fill="black", font=font)
+        
+        # Round the sentiment to two decimal places and convert it to a string
+        formatted_probability = "{:.2f}%".format(probability * 100)
+
+        # Display the predicted sentiment on the image
+        st_image.text((100, sentiment_y), f"Predicted sentiment: {sentiment_label}, Probability: {formatted_probability}", fill="black", font=font)
  
     # Save the chart as bytes
     chart_bytes = BytesIO()
@@ -148,7 +156,7 @@ def save_as_image(new_sentence, sorted_sentiments, fig):
     # Combine the text and chart images
     combined_image = Image.new("RGB", (950, 1200), "white")
     combined_image.paste(image, (0, 0))
-    combined_image.paste(chart_image, (0, 300))
+    combined_image.paste(chart_image, (0, 400))
 
     # Save the combined image as bytes
     image_bytes = BytesIO()
@@ -175,7 +183,6 @@ def show_home():
 def show_exploratory_data_analysis():
     st.title("Exploratory Data Analysis")
     
-
     df = pd.read_csv('./dataset/sentiment.csv')
     
     st.subheader("Dataset")
@@ -188,7 +195,6 @@ def show_exploratory_data_analysis():
     st.subheader("Sentiment Labeling with TextBlob Analysis")
     st.dataframe(df[['clean_text', 'textblob_polarity', 'sentiment_textblob']].sample(10))
     
-        
     # It's important to note that I have decided to save the processed images to avoid the need for repetitive processing,
     # which can be time-consuming. This approach allows for quicker access to the results and facilitates further analysis
     
@@ -243,7 +249,6 @@ def show_author():
     with col2:
         st.write("Hey everyone! I'm Christian M. De Los Santos, from the Philippines. I have over 2 years of experience in the field of data analytics, with a special focus on machine learning. I firmly believe that AI and ML have the power to bring about positive change in our communities, which is why I'm here, eager to make an impact. Learning from all of you brilliant minds is something I'm truly looking forward to. Let's collaborate and create something amazing together!")
 
-
 def main():
     st.sidebar.title("Navigation")
     selected_page = st.sidebar.radio("Go to", ["Home", "Sentiment Detection", "Exploratory Data Analysis", "Author"])
@@ -256,7 +261,6 @@ def main():
         show_exploratory_data_analysis()
     elif selected_page == "Author":
         show_author()
-
 
 if __name__ == "__main__":
     main()
